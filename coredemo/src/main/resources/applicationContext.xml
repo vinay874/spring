@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+                           http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <!-- 1️⃣ Setter Injection -->
+    <bean id="studentSetter" class="org.example.springcore.Student">
+        <property name="id" value="101"/>
+        <property name="name" value="Vinay"/>
+        <property name="subjects">
+            <list>
+                <value>Math</value>
+                <value>Science</value>
+                <value>English</value>
+            </list>
+        </property>
+        <property name="skills">
+            <set>
+                <value>Java</value>
+                <value>Spring</value>
+                <value>SQL</value>
+            </set>
+        </property>
+        <property name="marks">
+            <map>
+                <entry key="Math" value="85"/>
+                <entry key="Science" value="90"/>
+                <entry key="English" value="88"/>
+            </map>
+        </property>
+    </bean>
+
+    <!-- 2️⃣ Constructor Injection -->
+    <bean id="studentConstructor" class="org.example.springcore.Student">
+        <constructor-arg value="102"/>
+        <constructor-arg value="Reddy"/>
+    </bean>
+
+</beans>
