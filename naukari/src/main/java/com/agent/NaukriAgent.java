@@ -23,6 +23,7 @@ public class NaukriAgent {
     private static final String KEYWORD      = System.getenv().getOrDefault("KEYWORD", "Spring Boot Developer");
     private static final String LOCATION     = System.getenv().getOrDefault("LOCATION", "Hyderabad");
     private static final int MAX_APPLY_PER_RUN = Integer.parseInt(System.getenv().getOrDefault("MAX_APPLY", "3"));
+    private static final ApplicationTracker tracker = new ApplicationTracker();
 
     private WebDriver driver;
     private WebDriverWait wait;
@@ -68,24 +69,39 @@ public class NaukriAgent {
     }
 
     public void run() throws Exception {
+        String[] keywords = KEYWORD.split(",");
+        int totalApplied = 0;
         login();
-        searchJobs(KEYWORD, LOCATION);
-        List<String> links = collectJobLinksOnPage();
+        for (String raw : keywords) {
+            String keyword = raw.trim();
+            if (keyword.isEmpty()) continue;
 
-        int applied = 0;
-        for (String jobUrl : links) {
-            if (applied >= MAX_APPLY_PER_RUN) break;
-            if (isAlreadyApplied(jobUrl)) continue;
+            System.out.println("\n=============================");
+            System.out.println("🎯 Searching for keyword: " + keyword);
+            System.out.println("=============================\n");
 
-            if (applyToJob(jobUrl)) {
-                recordApplication(jobUrl, "unknown-title", "unknown-company", "applied");
-                applied++;
+            searchJobs(keyword, LOCATION);
+            List<String> links = collectJobLinksOnPage();
+            int applied = 0;
+
+            for (String jobUrl : links) {
+                if (applied >= MAX_APPLY_PER_RUN) break;
+                if (tracker.isAlreadyApplied(jobUrl)) continue;
+
+                if (applyToJob(jobUrl)) {
+                    tracker.recordApplication(jobUrl, keyword, "unknown-company", "applied");
+                    applied++;
+                    totalApplied++;
+                }
+                Thread.sleep(8000 + new Random().nextInt(5000));
             }
-            Thread.sleep(8000 + new Random().nextInt(5000));
+
+            System.out.println("✅ Finished keyword: " + keyword + " | Applied: " + applied + " jobs.");
         }
 
-        System.out.println("✅ Run complete. Applied to " + applied + " jobs.");
+        System.out.println("🏁 Total jobs applied this run: " + totalApplied);
     }
+
 
     private void login() throws InterruptedException {
         driver.manage().deleteAllCookies();
@@ -264,6 +280,68 @@ public class NaukriAgent {
             }
 
             System.out.println("✅ Application submitted or initiated.");
+
+            // 🧠 Step 4: Handle extra screening questions if present
+            try {
+                Thread.sleep(3000); // wait for popup to load
+
+                List<WebElement> textFields = driver.findElements(By.xpath("//input[@type='text' or @type='number' or @type='email']"));
+                List<WebElement> textAreas = driver.findElements(By.xpath("//textarea"));
+                List<WebElement> radioButtons = driver.findElements(By.xpath("//input[@type='radio']"));
+
+                if (!textFields.isEmpty() || !textAreas.isEmpty() || !radioButtons.isEmpty()) {
+                    System.out.println("🧩 Detected screening questions. Filling automatically...");
+
+                    // --- Fill text fields with smart defaults ---
+                    for (WebElement field : textFields) {
+                        String name = field.getAttribute("name");
+                        String placeholder = field.getAttribute("placeholder");
+
+                        if (placeholder != null && placeholder.toLowerCase().contains("notice")) {
+                            field.sendKeys("15 days");
+                        } else if (placeholder != null && placeholder.toLowerCase().contains("ctc")) {
+                            field.sendKeys("8 LPA");
+                        } else if (placeholder != null && placeholder.toLowerCase().contains("experience")) {
+                            field.sendKeys("3 years");
+                        } else if (placeholder != null && placeholder.toLowerCase().contains("location")) {
+                            field.sendKeys("Bangalore");
+                        } else {
+                            field.sendKeys("Yes");
+                        }
+                    }
+
+                    // --- Fill textareas if any ---
+                    for (WebElement ta : textAreas) {
+                        ta.sendKeys("I am interested in this opportunity and my experience aligns with the role.");
+                    }
+
+                    // --- Click first available radio option ---
+                    if (!radioButtons.isEmpty()) {
+                        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", radioButtons.get(0));
+                    }
+
+                    Thread.sleep(1000);
+
+                    // --- Click submit or save ---
+                    List<WebElement> submitButtons = driver.findElements(By.xpath(
+                            "//button[contains(text(),'Submit') or contains(text(),'Apply') or contains(text(),'Save')]"
+                    ));
+                    if (!submitButtons.isEmpty()) {
+                        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", submitButtons.get(0));
+                        System.out.println("📨 Submitted screening form successfully.");
+                    } else {
+                        System.out.println("⚠️ No Submit button found.");
+                    }
+
+                    Thread.sleep(2000);
+                } else {
+                    System.out.println("ℹ️ No extra questions found. Continuing...");
+                }
+
+            } catch (Exception e) {
+                System.out.println("⚠️ Error filling screening form: " + e.getMessage());
+            }
+
 
             driver.close();
             driver.switchTo().window(tabs.get(0));
